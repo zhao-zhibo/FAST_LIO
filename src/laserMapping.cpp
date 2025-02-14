@@ -83,6 +83,7 @@ condition_variable sig_buffer;
 
 string root_dir = ROOT_DIR;
 string map_file_path, lid_topic, imu_topic;
+bool imuAngularIsDegree;
 
 double res_mean_last = 0.05, total_residual = 0.0;
 double last_timestamp_lidar = 0, last_timestamp_imu = -1.0;
@@ -94,7 +95,6 @@ int    iterCount = 0, feats_down_size = 0, NUM_MAX_ITERATIONS = 0, laserCloudVal
 bool   point_selected_surf[100000] = {0};
 bool   lidar_pushed, flg_first_scan = true, flg_exit = false, flg_EKF_inited;
 bool   scan_pub_en = false, dense_pub_en = false, scan_body_pub_en = false;
-int lidar_type;
 
 vector<vector<int>>  pointSearchInd_surf; 
 vector<BoxPointType> cub_needrm;
@@ -139,6 +139,8 @@ geometry_msgs::PoseStamped msg_body_pose;
 
 shared_ptr<Preprocess> p_pre(new Preprocess());
 shared_ptr<ImuProcess> p_imu(new ImuProcess());
+
+ofstream fout_tum;
 
 void SigHandle(int sig)
 {
@@ -358,6 +360,17 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
 
     last_timestamp_imu = timestamp;
 
+    Eigen::Vector3d gyr(msg -> angular_velocity.x, msg -> angular_velocity.y, msg -> angular_velocity.z);
+    if(!imuAngularIsDegree) {
+        msg -> angular_velocity.x = gyr.x();
+        msg -> angular_velocity.y = gyr.y();
+        msg -> angular_velocity.z = gyr.z();
+    } else {
+        msg -> angular_velocity.x = gyr.x() * (M_PI / 180);
+        msg -> angular_velocity.y = gyr.y() * (M_PI / 180);
+        msg -> angular_velocity.z = gyr.z() * (M_PI / 180);
+    }
+    
     imu_buffer.push_back(msg);
     mtx_buffer.unlock();
     sig_buffer.notify_all();
@@ -376,8 +389,6 @@ bool sync_packages(MeasureGroup &meas)
     {
         meas.lidar = lidar_buffer.front();
         meas.lidar_beg_time = time_buffer.front();
-
-
         if (meas.lidar->points.size() <= 1) // time too little
         {
             lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime;
@@ -393,8 +404,6 @@ bool sync_packages(MeasureGroup &meas)
             lidar_end_time = meas.lidar_beg_time + meas.lidar->points.back().curvature / double(1000);
             lidar_mean_scantime += (meas.lidar->points.back().curvature / double(1000) - lidar_mean_scantime) / scan_num;
         }
-        if(lidar_type == MARSIM)
-            lidar_end_time = meas.lidar_beg_time;
 
         meas.lidar_end_time = lidar_end_time;
 
@@ -625,6 +634,16 @@ void publish_path(const ros::Publisher pubPath)
     msg_body_pose.header.stamp = ros::Time().fromSec(lidar_end_time);
     msg_body_pose.header.frame_id = "camera_init";
 
+    // 以TUM格式输出定位结果
+    fout_tum << std::fixed << std::setprecision(6) << lidar_end_time << " "
+            << msg_body_pose.pose.position.x << " "
+            << msg_body_pose.pose.position.y << " "
+            << msg_body_pose.pose.position.z << " "
+            << msg_body_pose.pose.orientation.x << " "
+            << msg_body_pose.pose.orientation.y << " "
+            << msg_body_pose.pose.orientation.z << " "
+            << msg_body_pose.pose.orientation.w << std::endl;
+
     /*** if path is too large, the rvis will crash ***/
     static int jjj = 0;
     jjj++;
@@ -768,6 +787,8 @@ int main(int argc, char** argv)
     nh.param<string>("common/imu_topic", imu_topic,"/livox/imu");
     nh.param<bool>("common/time_sync_en", time_sync_en, false);
     nh.param<double>("common/time_offset_lidar_to_imu", time_diff_lidar_to_imu, 0.0);
+    nh.param<bool>("common/imuAngularIsDegree", imuAngularIsDegree, false);
+
     nh.param<double>("filter_size_corner",filter_size_corner_min,0.5);
     nh.param<double>("filter_size_surf",filter_size_surf_min,0.5);
     nh.param<double>("filter_size_map",filter_size_map_min,0.5);
@@ -779,7 +800,7 @@ int main(int argc, char** argv)
     nh.param<double>("mapping/b_gyr_cov",b_gyr_cov,0.0001);
     nh.param<double>("mapping/b_acc_cov",b_acc_cov,0.0001);
     nh.param<double>("preprocess/blind", p_pre->blind, 0.01);
-    nh.param<int>("preprocess/lidar_type", lidar_type, AVIA);
+    nh.param<int>("preprocess/lidar_type", p_pre->lidar_type, AVIA);
     nh.param<int>("preprocess/scan_line", p_pre->N_SCANS, 16);
     nh.param<int>("preprocess/timestamp_unit", p_pre->time_unit, US);
     nh.param<int>("preprocess/scan_rate", p_pre->SCAN_RATE, 10);
@@ -791,8 +812,6 @@ int main(int argc, char** argv)
     nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
     nh.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
     nh.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
-
-    p_pre->lidar_type = lidar_type;
     cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
     
     path.header.stamp    = ros::Time::now();
@@ -822,7 +841,7 @@ int main(int argc, char** argv)
     p_imu->set_acc_cov(V3D(acc_cov, acc_cov, acc_cov));
     p_imu->set_gyr_bias_cov(V3D(b_gyr_cov, b_gyr_cov, b_gyr_cov));
     p_imu->set_acc_bias_cov(V3D(b_acc_cov, b_acc_cov, b_acc_cov));
-    p_imu->lidar_type = lidar_type;
+
     double epsi[23] = {0.001};
     fill(epsi, epsi+23, 0.001);
     kf.init_dyn_share(get_f, df_dx, df_dw, h_share_model, NUM_MAX_ITERATIONS, epsi);
@@ -836,7 +855,8 @@ int main(int argc, char** argv)
     fout_pre.open(DEBUG_FILE_DIR("mat_pre.txt"),ios::out);
     fout_out.open(DEBUG_FILE_DIR("mat_out.txt"),ios::out);
     fout_dbg.open(DEBUG_FILE_DIR("dbg.txt"),ios::out);
-    if (fout_pre && fout_out)
+    fout_tum.open(DEBUG_FILE_DIR("tum_traj.txt"),ios::out);
+    if (fout_pre && fout_out && fout_tum)
         cout << "~~~~"<<ROOT_DIR<<" file opened" << endl;
     else
         cout << "~~~~"<<ROOT_DIR<<" doesn't exist" << endl;
@@ -1032,6 +1052,7 @@ int main(int argc, char** argv)
 
     fout_out.close();
     fout_pre.close();
+    fout_tum.close();
 
     if (runtime_pos_log)
     {

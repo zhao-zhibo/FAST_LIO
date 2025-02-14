@@ -1,5 +1,10 @@
 ## Related Works and Extended Application
 
+- 启动docker，`docker run -it --network host kenny0407/marslab_fastlio2:latest /bin/bash`
+- 显示当前的docker，`docker ps -a`，关闭docker，`docker rm 604b3f5d89df`,另外`docker images`
+- vscode启动之后，在终端启动，`docker run -it --network host kenny0407/marslab_fastlio2:latest /bin/bash`
+- docker退出，`docker exec -it 0a642097df2f /bin/bash`
+
 **SLAM:**
 
 1. [ikd-Tree](https://github.com/hku-mars/ikd-Tree): A state-of-art dynamic KD-Tree for 3D kNN search.
@@ -133,6 +138,7 @@ execute the following command to download the image and create the container.
 - This command also establishes a new workspace called ``` docker_ws ```, which serves as a shared folder between the Docker container and the host machine. This means that if users wish to run the rosbag example, they need to download the rosbag file and place it in the ``` docker_ws ``` directory on their host machine.
 - Subsequently, a folder with the same name inside the Docker container will receive this file. Users can then easily play the file within Docker.
 - In this example, we've shared the network of the host machine with the Docker container. Consequently, if users execute the ``` rostopic list ``` command, they will observe identical output whether they run it on the host machine or inside the Docker container."
+
 ### 2.2 Build from source
 Clone the repository and catkin_make:
 

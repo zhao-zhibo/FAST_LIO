@@ -1,7 +1,7 @@
 ## Related Works and Extended Application
 
 - 启动docker，`docker run -it --network host kenny0407/marslab_fastlio2:latest /bin/bash`
-- 显示当前的docker，`docker ps -a`，关闭docker，`docker rm 604b3f5d89df`,另外`docker images`
+- 显示当前的docker，`docker ps -a`，删除docker，谨慎使用不要使用这个命令：`docker rm 604b3f5d89df`,另外`docker images`，列出本地存储的所有 Docker 镜像。
 - vscode启动之后，在终端启动，`docker run -it --network host kenny0407/marslab_fastlio2:latest /bin/bash`
 - docker退出，`docker exec -it 0a642097df2f /bin/bash`
 

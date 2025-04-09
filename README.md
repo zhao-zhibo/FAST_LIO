@@ -5,6 +5,8 @@
 - vscode启动之后，在终端启动，`docker run -it --network host kenny0407/marslab_fastlio2:latest /bin/bash`
 - docker退出，`docker exec -it 0a642097df2f /bin/bash`
 
+- 以上步骤的操作前提是没有创建过docker，如果创建过了，可以直接进入进行使用即可，在Vsode中可以直接 attack shell，即可进入这个docker，同时使用的时候注意进行start和stop即可。
+
 **SLAM:**
 
 1. [ikd-Tree](https://github.com/hku-mars/ikd-Tree): A state-of-art dynamic KD-Tree for 3D kNN search.
